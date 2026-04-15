@@ -35,16 +35,27 @@ jobs:
         run: |
           pip install lxml click
 
-      # 3. Kopírování XSD souborů (stejné jako předtím)
+      # 3. Kopírování XSD souborů s pročištěním
       - name: Copy XSD directories
         run: |
-          mkdir -p destination/mirror-ccmm
+          # Pokud adresář už existuje, vymažeme jeho obsah, 
+          # aby tam nezůstaly "sirotci" (soubory smazané v CCMM)
+          if [ -d "destination/mirror-ccmm" ]; then
+            rm -rf destination/mirror-ccmm/*
+          else
+            mkdir -p destination/mirror-ccmm
+          fi
+          
           cd source
           find . -name "*.xsd" > xsd_list.txt
           if [ -s xsd_list.txt ]; then
+            # Kopírování struktur do čistého adresáře
             cat xsd_list.txt | xargs cp --parents -t ../destination/mirror-ccmm/
+            echo "Kopírování dokončeno."
+          else
+            echo "Varování: Žádné XSD soubory nebyly nalezeny!"
+            exit 1 # Zastaví workflow, pokud se nic nenašlo (bezpečnostní pojistka)
           fi
-
       # 4. Spuštění vašeho Python skriptu
       # Argumenty: složka se staženými XSD a název výsledného souboru
       - name: Run merge_schemas.py
