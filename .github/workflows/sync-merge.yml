@@ -1,0 +1,67 @@
+name: Sync and Merge XSD
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sync-and-merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository
+        uses: actions/checkout@v4
+        with:
+          path: destination
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout CCMM source
+        uses: actions/checkout@v4
+        with:
+          repository: techlib/CCMM
+          path: source
+
+      # 1. Nastavení Pythonu
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # 2. Instalace knihoven, které váš skript vyžaduje
+      - name: Install dependencies
+        run: |
+          pip install lxml click
+
+      # 3. Kopírování XSD souborů (stejné jako předtím)
+      - name: Copy XSD directories
+        run: |
+          mkdir -p destination/mirror-ccmm
+          cd source
+          find . -name "*.xsd" > xsd_list.txt
+          if [ -s xsd_list.txt ]; then
+            cat xsd_list.txt | xargs cp --parents -t ../destination/mirror-ccmm/
+          fi
+
+      # 4. Spuštění vašeho Python skriptu
+      # Argumenty: složka se staženými XSD a název výsledného souboru
+      - name: Run merge_schemas.py
+        run: |
+          cd destination
+          python merge_schemas.py mirror-ccmm/ merged_output.xsd
+
+      # 5. Commit a Push všech změn (včetně nového merged_output.xsd)
+      - name: Commit and push
+        run: |
+          cd destination
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          if ! git diff --cached --quiet; then
+            git commit -m "Sync and merge XSD schemas"
+            git push origin HEAD
+          else
+            echo "No changes to commit"
+          fi
