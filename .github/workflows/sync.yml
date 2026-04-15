@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 0 * * *'
 
+# Povolení zápisu pro GitHub Actions token
+permissions:
+  contents: write
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -13,6 +17,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: destination
+          # Použije automatický token s právy zápisu
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout CCMM source
         uses: actions/checkout@v4
@@ -22,22 +28,12 @@ jobs:
 
       - name: Copy XSD directories with structure
         run: |
-          # Vytvoření cílového adresáře předem
           mkdir -p destination/mirror-ccmm
-          
-          # Přejdeme do zdroje
           cd source
-          
-          # Najdeme všechny XSD soubory. 
-          # Pokud žádné nenajde, skript neselže díky '|| true'
-          # Použijeme rsync, který je pro kopírování struktur spolehlivější
+          # Najdeme a zkopírujeme soubory
           find . -name "*.xsd" > xsd_list.txt
-          
           if [ -s xsd_list.txt ]; then
             cat xsd_list.txt | xargs cp --parents -t ../destination/mirror-ccmm/
-            echo "Soubory byly zkopírovány."
-          else
-            echo "Nenalezeny žádné XSD soubory."
           fi
 
       - name: Commit and push
@@ -46,10 +42,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          # Kontrola, zda je co commitovat
+          
+          # Kontrola, zda jsou v indexu nějaké změny k odeslání
           if ! git diff --cached --quiet; then
             git commit -m "Sync XSD schemas from techlib/CCMM"
-            git push
+            git push origin HEAD
           else
-            echo "Zádné změny k nahrání."
+            echo "Žádné změny k nahrání."
           fi
