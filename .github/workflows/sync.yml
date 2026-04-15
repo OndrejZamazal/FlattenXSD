@@ -22,12 +22,23 @@ jobs:
 
       - name: Copy XSD directories with structure
         run: |
-          # Vstup do složky zdroje
+          # Vytvoření cílového adresáře předem
+          mkdir -p destination/mirror-ccmm
+          
+          # Přejdeme do zdroje
           cd source
           
-          # Najdeme všechny soubory .xsd a zkopírujeme je i s cestou do cíle
-          # --parents zachová adresářovou strukturu
-          find . -name "*.xsd" -exec cp --parents -t ../destination/mirror-ccmm/ {} +
+          # Najdeme všechny XSD soubory. 
+          # Pokud žádné nenajde, skript neselže díky '|| true'
+          # Použijeme rsync, který je pro kopírování struktur spolehlivější
+          find . -name "*.xsd" > xsd_list.txt
+          
+          if [ -s xsd_list.txt ]; then
+            cat xsd_list.txt | xargs cp --parents -t ../destination/mirror-ccmm/
+            echo "Soubory byly zkopírovány."
+          else
+            echo "Nenalezeny žádné XSD soubory."
+          fi
 
       - name: Commit and push
         run: |
@@ -35,9 +46,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add .
-          if [ -n "$(git status --porcelain)" ]; then
+          # Kontrola, zda je co commitovat
+          if ! git diff --cached --quiet; then
             git commit -m "Sync XSD schemas from techlib/CCMM"
             git push
           else
-            echo "No changes to commit"
+            echo "Zádné změny k nahrání."
           fi
