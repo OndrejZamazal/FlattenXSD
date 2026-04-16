@@ -1,4 +1,4 @@
-name: Sync and Flatten CCMM
+name: Sync and Merge XSD
 
 on:
   workflow_dispatch:
@@ -24,57 +24,51 @@ jobs:
           repository: techlib/CCMM
           path: source
 
+      # 1. Nastavení Pythonu
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # 2. Instalace knihoven
       - name: Install dependencies
-        run: pip install lxml click
+        run: |
+          pip install lxml click
 
+      # 3. Kopírování XSD souborů s pročištěním
       - name: Copy XSD directories
         run: |
-          TARGET_DIR="destination/ccmm-xsd-flat/mirror-ccmm"
-          
-          # Vyčištění cíle
-          if [ -d "$TARGET_DIR" ]; then
-            rm -rf "$TARGET_DIR"/*
+          if [ -d "destination/mirror-ccmm" ]; then
+            rm -rf destination/mirror-ccmm/*
           else
-            mkdir -p "$TARGET_DIR"
+            mkdir -p destination/mirror-ccmm
           fi
           
           cd source
           find . -name "*.xsd" > xsd_list.txt
           if [ -s xsd_list.txt ]; then
-            cat xsd_list.txt | xargs cp --parents -t "../$TARGET_DIR/"
-            echo "Kopírování do $TARGET_DIR dokončeno."
+            
+            cat xsd_list.txt | xargs cp --parents -t ../destination/mirror-ccmm/
+            echo "Kopírování dokončeno."
           else
-            echo "Chyba: Žádné XSD nenalezeny."
+            echo "Varování: Žádné XSD soubory nebyly nalezeny!"
             exit 1
           fi
-
-      - name: Run ccmm-xsd-flat
+      # 4. Spuštění Python skriptu
+      - name: Run merge_schemas.py
         run: |
-          # Vstoupíme do adresáře utility
-          cd destination/ccmm-xsd-flat
-          
-          # Spustíme skript: 
-          # Vstup: mirror-ccmm/ (který je teď vedle skriptu)
-          # Výstup: ccmm_merged.xsd (vytvoří se ve stejném adresáři)
+          cd destination
           python merge_schemas.py mirror-ccmm/ ccmm_merged.xsd
 
-      # 5. Commit a Push (pouze změn v daném adresáři)
+      # 5. Commit a Push
       - name: Commit and push
         run: |
           cd destination
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Přidáme jen změny v cílovém adresáři
-          git add ccmm-xsd-flat/
-          
+          git add .
           if ! git diff --cached --quiet; then
-            git commit -m "Update: Synchronized and flattened XSD in ccmm-xsd-flat/"
+            git commit -m "Sync and merge XSD schemas"
             git push origin HEAD
           else
             echo "No changes to commit"
